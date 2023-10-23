@@ -117,3 +117,65 @@ COUNT(DISTINCT customer_id) AS customers
 FROM subscriptions AS s
 LEFT JOIN plans AS p ON s.plan_id = p.plan_id
 WHERE YEAR(start_date) = 2020 AND CONTAINS(plan_name, 'annual');
+
+--9. How many days on average does it take for a customer to start an annual plan from the day they join Foodie-Fi?
+
+WITH cte AS 
+(SELECT s.customer_id, DATEDIFF(day, MIN(start_date), MAX(start_date)) AS day_diff
+FROM subscriptions AS s 
+INNER JOIN plans AS p on s.plan_id = p.plan_id
+WHERE plan_name = 'trial' OR plan_name = 'pro annual'
+GROUP BY s.customer_id)
+SELECT ROUND(AVG(day_diff)) AS avg_days_to_annual
+FROM cte
+WHERE day_diff != 0;
+
+--10. Can you further breakdown this average value into 30 day periods (i.e. 0-30 days, 31-60 days etc)
+
+WITH cte AS (
+SELECT s.customer_id, DATEDIFF(day, MIN(start_date), MAX(start_date)) AS day_diff,
+CASE 
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 30 THEN '0-30 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 60 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 30 THEN '31-60 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 90 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 60 THEN '61-90 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 120 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 90 THEN '91-120 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 150 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 120 THEN '121-150 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 180 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 150 THEN '151-180 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 210 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 180 THEN '181-210 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 240 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 210 THEN '211-240 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 270 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 240 THEN '241-270 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date))<= 300 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 270 THEN '271-300 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 330 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 300 THEN '301-330 days'
+WHEN DATEDIFF(day, MIN(start_date), MAX(start_date)) <= 360 AND DATEDIFF(day, MIN(start_date), MAX(start_date)) > 330 THEN '331-360 days'
+END AS bin
+FROM subscriptions AS s 
+INNER JOIN plans AS p on s.plan_id = p.plan_id
+WHERE plan_name = 'trial' OR plan_name = 'pro annual'
+GROUP BY s.customer_id)
+SELECT bin,
+COUNT(DISTINCT customer_id) AS customers
+FROM cte
+WHERE day_diff != 0
+GROUP BY bin;
+
+--11. How many customers downgraded from a pro monthly to a basic monthly plan in 2020?
+
+WITH pro_monthly AS
+(SELECT customer_id,
+start_date AS pro_start_date
+FROM subscriptions
+WHERE plan_id = 2),
+
+basic_monthly AS 
+(SELECT customer_id,
+start_date AS basic_start_date
+FROM subscriptions
+WHERE plan_id = 1)
+
+SELECT p.customer_id,
+pro_start_date,
+basic_start_date
+FROM pro_monthly AS p
+INNER JOIN basic_monthly AS b ON p.customer_id = b.customer_id
+WHERE YEAR(basic_start_date) = 2020 
+AND pro_start_date < basic_start_date;
